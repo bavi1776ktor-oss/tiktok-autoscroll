@@ -1,32 +1,62 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   Dimensions,
+  Linking,
 } from 'react-native';
+import AccessibilityService from 'react-native-accessibility-service';
 
 const { height } = Dimensions.get('window');
 
 export default function App() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
-  const intervalRef = useRef(null);
+  const [statusText, setStatusText] = useState('Ожидание...');
+  const [isServiceEnabled, setIsServiceEnabled] = useState(false);
 
-  const startProgress = () => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
+  useEffect(() => {
+    // Проверяем, включена ли доступность
+    checkAccessibility();
+  }, []);
+
+  const checkAccessibility = async () => {
+    const enabled = await AccessibilityService.isAccessibilityEnabled();
+    setIsServiceEnabled(enabled);
+    if (!enabled) {
+      setStatusText('Включите доступность в настройках');
+    }
+  };
+
+  const startWatching = () => {
+    setStatusText('Слежу за бегунком...');
+    // Начинаем мониторинг экрана
+    AccessibilityService.startMonitoring((event) => {
+      if (event.type === 'progress') {
+        setProgress(event.progress);
+      } else if (event.type === 'reset') {
+        // Ролик закончился - делаем свайп
+        performSwipe();
+      }
+    });
+  };
+
+  const stopWatching = () => {
+    setStatusText('Ожидание...');
     setProgress(0);
+    AccessibilityService.stopMonitoring();
+  };
 
-    intervalRef.current = setInterval(() => {
-      setProgress(prev => {
-        const next = prev + 1;
-        if (next >= 100) {
-          return 0;
-        }
-        return next;
-      });
-    }, 50);
+  const performSwipe = () => {
+    setStatusText('Свайп!');
+    AccessibilityService.swipeUp();
+    setTimeout(() => {
+      if (isPlaying) {
+        setStatusText('Слежу за бегунком...');
+      }
+    }, 500);
   };
 
   const togglePlay = () => {
@@ -34,28 +64,26 @@ export default function App() {
     setIsPlaying(newState);
 
     if (newState) {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      startProgress();
-    } else {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
+      checkAccessibility();
+      if (isServiceEnabled) {
+        startWatching();
+      } else {
+        setStatusText('Сначала включите доступность');
+        setIsPlaying(false);
       }
-      setProgress(0);
+    } else {
+      stopWatching();
     }
   };
 
   const handleSkip = () => {
     if (isPlaying) {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-      setProgress(0);
-      startProgress();
-    } else {
-      setProgress(0);
+      performSwipe();
     }
+  };
+
+  const openSettings = () => {
+    AccessibilityService.openAccessibilitySettings();
   };
 
   return (
@@ -63,19 +91,26 @@ export default function App() {
       <View style={styles.content}>
         <Text style={styles.title}>TikTok AutoScroll</Text>
         <Text style={styles.subtitle}>
-          {isPlaying ? '▶ Воспроизведение...' : '⏸ На паузе'}
+          {isPlaying ? '▶ Активен' : '⏸ На паузе'}
         </Text>
         
         <Text style={styles.progressBig}>
-          {progress}%
+          {Math.round(progress)}%
         </Text>
 
-        <Text style={styles.debugText}>
-          {isPlaying ? 'Слежу за бегунком...' : 'Ожидание...'}
-        </Text>
+        <Text style={styles.statusText}>{statusText}</Text>
         <Text style={styles.hintText}>
-          Нажми Play — цифра будет бежать бесконечно
+          Доступность: {isServiceEnabled ? '✅ Включена' : '❌ Выключена'}
         </Text>
+        
+        <TouchableOpacity 
+          style={styles.settingsButton}
+          onPress={openSettings}
+        >
+          <Text style={styles.settingsButtonText}>
+            Открыть настройки доступности
+          </Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.floatingPanel}>
@@ -127,15 +162,27 @@ const styles = StyleSheet.create({
     color: '#00cc66',
     marginBottom: 20,
   },
-  debugText: {
+  statusText: {
     fontSize: 16,
-    color: '#888888',
+    color: '#ffffff',
     marginBottom: 10,
   },
   hintText: {
     fontSize: 14,
-    color: '#555555',
-    textAlign: 'center',
+    color: '#888888',
+    marginBottom: 20,
+  },
+  settingsButton: {
+    backgroundColor: '#1a73e8',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginBottom: 10,
+  },
+  settingsButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   floatingPanel: {
     position: 'absolute',
