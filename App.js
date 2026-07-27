@@ -1,76 +1,61 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   Dimensions,
-  Linking,
-  Platform,
 } from 'react-native';
-import { NativeModules, NativeEventEmitter } from 'react-native';
 
 const { height } = Dimensions.get('window');
-const { AccessibilityModule } = NativeModules;
-const eventEmitter = new NativeEventEmitter(AccessibilityModule);
 
 export default function App() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [isServiceRunning, setIsServiceRunning] = useState(false);
-  const [statusText, setStatusText] = useState('Ожидание...');
+  const intervalRef = useRef(null);
 
-  useEffect(() => {
-    // Слушаем события от Accessibility Service
-    const subscription = eventEmitter.addListener('onProgressUpdate', (event) => {
-      setProgress(event.progress);
-    });
+  const startProgress = () => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    setProgress(0);
 
-    const resetSubscription = eventEmitter.addListener('onProgressReset', () => {
-      if (isPlaying) {
-        setStatusText('Свайп!');
-        setTimeout(() => setStatusText('Слежу за бегунком...'), 500);
-      }
-    });
-
-    const adSubscription = eventEmitter.addListener('onAdDetected', () => {
-      setStatusText('Реклама! Свайп...');
-    });
-
-    return () => {
-      subscription.remove();
-      resetSubscription.remove();
-      adSubscription.remove();
-    };
-  }, [isPlaying]);
+    intervalRef.current = setInterval(() => {
+      setProgress(prev => {
+        const next = prev + 1;
+        if (next >= 100) {
+          return 0;
+        }
+        return next;
+      });
+    }, 50);
+  };
 
   const togglePlay = () => {
     const newState = !isPlaying;
     setIsPlaying(newState);
 
     if (newState) {
-      setStatusText('Запуск сервиса...');
-      AccessibilityModule.startService();
-      setIsServiceRunning(true);
-      setStatusText('Слежу за бегунком...');
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      startProgress();
     } else {
-      AccessibilityModule.stopService();
-      setIsServiceRunning(false);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
       setProgress(0);
-      setStatusText('Ожидание...');
     }
   };
 
   const handleSkip = () => {
-    AccessibilityModule.performSwipe();
     if (isPlaying) {
-      setStatusText('Пропуск...');
-      setTimeout(() => setStatusText('Слежу за бегунком...'), 500);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      setProgress(0);
+      startProgress();
+    } else {
+      setProgress(0);
     }
-  };
-
-  const openAccessibilitySettings = () => {
-    Linking.openSettings();
   };
 
   return (
@@ -78,26 +63,18 @@ export default function App() {
       <View style={styles.content}>
         <Text style={styles.title}>TikTok AutoScroll</Text>
         <Text style={styles.subtitle}>
-          {isPlaying ? '▶ Активен' : '⏸ На паузе'}
+          {isPlaying ? '▶ Воспроизведение...' : '⏸ На паузе'}
         </Text>
         
         <Text style={styles.progressBig}>
-          {Math.round(progress)}%
+          {progress}%
         </Text>
 
-        <Text style={styles.statusText}>{statusText}</Text>
-        
-        <TouchableOpacity 
-          style={styles.settingsButton}
-          onPress={openAccessibilitySettings}
-        >
-          <Text style={styles.settingsButtonText}>
-            Открыть настройки доступности
-          </Text>
-        </TouchableOpacity>
-        
+        <Text style={styles.debugText}>
+          {isPlaying ? 'Слежу за бегунком...' : 'Ожидание...'}
+        </Text>
         <Text style={styles.hintText}>
-          Включите "TikTok AutoScroll" в настройках доступности
+          Нажми Play — цифра будет бежать бесконечно
         </Text>
       </View>
 
@@ -150,28 +127,15 @@ const styles = StyleSheet.create({
     color: '#00cc66',
     marginBottom: 20,
   },
-  statusText: {
+  debugText: {
     fontSize: 16,
-    color: '#ffffff',
-    marginBottom: 20,
-  },
-  settingsButton: {
-    backgroundColor: '#1a73e8',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8,
+    color: '#888888',
     marginBottom: 10,
   },
-  settingsButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
   hintText: {
-    fontSize: 12,
-    color: '#666666',
+    fontSize: 14,
+    color: '#555555',
     textAlign: 'center',
-    marginTop: 10,
   },
   floatingPanel: {
     position: 'absolute',
