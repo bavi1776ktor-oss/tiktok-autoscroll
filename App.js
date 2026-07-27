@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,126 +12,62 @@ const { height } = Dimensions.get('window');
 export default function App() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
+  const intervalRef = useRef(null);
 
-  const progressInterval = useRef(null);
-  const watchTimeout = useRef(null);
-  const lastResetTime = useRef(Date.now());
-
-  // Запуск эмуляции
-  const startWatching = () => {
-    // Очищаем старые таймеры
-    if (progressInterval.current) clearInterval(progressInterval.current);
-    if (watchTimeout.current) clearTimeout(watchTimeout.current);
-
+  const startProgress = () => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
     setProgress(0);
-    let currentProgress = 0;
 
-    // Бегунок растет от 0 до 100
-    progressInterval.current = setInterval(() => {
-      currentProgress += 2;
-      if (currentProgress >= 100) {
-        currentProgress = 100;
-        setProgress(100);
-        clearInterval(progressInterval.current);
-        progressInterval.current = null;
-        // Сброс — свайп (эмуляция)
-        handleProgressReset();
-      } else {
-        setProgress(currentProgress);
-      }
-    }, 100);
-
-    // Таймаут 1.5 сек — если бегунок не появился (реклама)
-    watchTimeout.current = setTimeout(() => {
-      if (progress === 0 && isPlaying) {
-        console.log('Реклама -> свайп');
-        performSwipe();
-        if (isPlaying) {
-          startWatching();
+    intervalRef.current = setInterval(() => {
+      setProgress(prev => {
+        const next = prev + 1;
+        if (next >= 100) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+          // Автоматический рестарт через 0.5 сек (эмуляция нового ролика)
+          setTimeout(() => {
+            if (isPlaying) {
+              startProgress();
+            }
+          }, 500);
+          return 100;
         }
-      }
-    }, 1500);
+        return next;
+      });
+    }, 50); // Обновление каждые 50 мс = плавный рост
   };
 
-  // Сброс бегунка
-  const handleProgressReset = () => {
-    const now = Date.now();
-    const timeSinceLastReset = now - lastResetTime.current;
-
-    if (timeSinceLastReset < 300) {
-      return;
-    }
-
-    lastResetTime.current = now;
-
-    if (isPlaying) {
-      console.log('Сброс бегунка -> свайп');
-      performSwipe();
-      setTimeout(() => {
-        if (isPlaying) {
-          startWatching();
-        }
-      }, 500);
-    }
-  };
-
-  // Эмуляция свайпа
-  const performSwipe = () => {
-    console.log('Свайп вверх');
-  };
-
-  // Play / Pause
   const togglePlay = () => {
     const newState = !isPlaying;
     setIsPlaying(newState);
 
     if (newState) {
-      console.log('Play включен');
-      lastResetTime.current = Date.now();
-      startWatching();
+      // Запускаем прогресс
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      startProgress();
     } else {
-      console.log('Pause включен');
-      if (progressInterval.current) {
-        clearInterval(progressInterval.current);
-        progressInterval.current = null;
-      }
-      if (watchTimeout.current) {
-        clearTimeout(watchTimeout.current);
-        watchTimeout.current = null;
+      // Останавливаем
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
       }
       setProgress(0);
     }
   };
 
-  // Skip
   const handleSkip = () => {
-    console.log('Нажат Skip');
-    performSwipe();
     if (isPlaying) {
-      if (progressInterval.current) {
-        clearInterval(progressInterval.current);
-        progressInterval.current = null;
-      }
-      if (watchTimeout.current) {
-        clearTimeout(watchTimeout.current);
-        watchTimeout.current = null;
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
       }
       setProgress(0);
-      setTimeout(() => {
-        if (isPlaying) {
-          startWatching();
-        }
-      }, 500);
+      startProgress();
+    } else {
+      // Если на паузе — просто сбрасываем
+      setProgress(0);
     }
   };
-
-  // Очистка при выходе
-  useEffect(() => {
-    return () => {
-      if (progressInterval.current) clearInterval(progressInterval.current);
-      if (watchTimeout.current) clearTimeout(watchTimeout.current);
-    };
-  }, []);
 
   return (
     <View style={styles.container}>
@@ -140,14 +76,17 @@ export default function App() {
         <Text style={styles.subtitle}>
           {isPlaying ? '▶ Воспроизведение...' : '⏸ На паузе'}
         </Text>
-        <Text style={styles.progressText}>
-          Прогресс: {Math.round(progress)}%
+        
+        {/* ГЛАВНОЕ - ЦИФРА ПРОГРЕССА ВЫВЕДЕНА КРУПНО */}
+        <Text style={styles.progressBig}>
+          {progress}%
         </Text>
+
         <Text style={styles.debugText}>
           {isPlaying ? 'Слежу за бегунком...' : 'Ожидание...'}
         </Text>
         <Text style={styles.hintText}>
-          Нажми Play — бегунок начнет расти
+          Нажми Play — цифра начнет расти
         </Text>
       </View>
 
@@ -176,10 +115,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0a0a0a',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   content: {
-    flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
   },
@@ -192,22 +131,22 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 18,
     color: '#a0c4ff',
+    marginBottom: 30,
+  },
+  progressBig: {
+    fontSize: 72,
+    fontWeight: 'bold',
+    color: '#00cc66',
     marginBottom: 20,
   },
-  progressText: {
+  debugText: {
     fontSize: 16,
     color: '#888888',
     marginBottom: 10,
   },
-  debugText: {
-    fontSize: 14,
-    color: '#555555',
-    marginBottom: 5,
-  },
   hintText: {
     fontSize: 14,
-    color: '#666666',
-    marginTop: 20,
+    color: '#555555',
     textAlign: 'center',
   },
   floatingPanel: {
