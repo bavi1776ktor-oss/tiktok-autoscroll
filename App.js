@@ -1,72 +1,76 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   Dimensions,
+  Linking,
+  Platform,
 } from 'react-native';
+import { NativeModules, NativeEventEmitter } from 'react-native';
 
 const { height } = Dimensions.get('window');
+const { AccessibilityModule } = NativeModules;
+const eventEmitter = new NativeEventEmitter(AccessibilityModule);
 
 export default function App() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
-  const intervalRef = useRef(null);
+  const [isServiceRunning, setIsServiceRunning] = useState(false);
+  const [statusText, setStatusText] = useState('Ожидание...');
 
-  const startProgress = () => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    setProgress(0);
+  useEffect(() => {
+    // Слушаем события от Accessibility Service
+    const subscription = eventEmitter.addListener('onProgressUpdate', (event) => {
+      setProgress(event.progress);
+    });
 
-    intervalRef.current = setInterval(() => {
-      setProgress(prev => {
-        const next = prev + 1;
-        if (next >= 100) {
-          clearInterval(intervalRef.current);
-          intervalRef.current = null;
-          // Автоматический рестарт через 0.5 сек (эмуляция нового ролика)
-          setTimeout(() => {
-            if (isPlaying) {
-              startProgress();
-            }
-          }, 500);
-          return 100;
-        }
-        return next;
-      });
-    }, 50); // Обновление каждые 50 мс = плавный рост
-  };
+    const resetSubscription = eventEmitter.addListener('onProgressReset', () => {
+      if (isPlaying) {
+        setStatusText('Свайп!');
+        setTimeout(() => setStatusText('Слежу за бегунком...'), 500);
+      }
+    });
+
+    const adSubscription = eventEmitter.addListener('onAdDetected', () => {
+      setStatusText('Реклама! Свайп...');
+    });
+
+    return () => {
+      subscription.remove();
+      resetSubscription.remove();
+      adSubscription.remove();
+    };
+  }, [isPlaying]);
 
   const togglePlay = () => {
     const newState = !isPlaying;
     setIsPlaying(newState);
 
     if (newState) {
-      // Запускаем прогресс
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      startProgress();
+      setStatusText('Запуск сервиса...');
+      AccessibilityModule.startService();
+      setIsServiceRunning(true);
+      setStatusText('Слежу за бегунком...');
     } else {
-      // Останавливаем
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
+      AccessibilityModule.stopService();
+      setIsServiceRunning(false);
       setProgress(0);
+      setStatusText('Ожидание...');
     }
   };
 
   const handleSkip = () => {
+    AccessibilityModule.performSwipe();
     if (isPlaying) {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-      setProgress(0);
-      startProgress();
-    } else {
-      // Если на паузе — просто сбрасываем
-      setProgress(0);
+      setStatusText('Пропуск...');
+      setTimeout(() => setStatusText('Слежу за бегунком...'), 500);
     }
+  };
+
+  const openAccessibilitySettings = () => {
+    Linking.openSettings();
   };
 
   return (
@@ -74,19 +78,26 @@ export default function App() {
       <View style={styles.content}>
         <Text style={styles.title}>TikTok AutoScroll</Text>
         <Text style={styles.subtitle}>
-          {isPlaying ? '▶ Воспроизведение...' : '⏸ На паузе'}
+          {isPlaying ? '▶ Активен' : '⏸ На паузе'}
         </Text>
         
-        {/* ГЛАВНОЕ - ЦИФРА ПРОГРЕССА ВЫВЕДЕНА КРУПНО */}
         <Text style={styles.progressBig}>
-          {progress}%
+          {Math.round(progress)}%
         </Text>
 
-        <Text style={styles.debugText}>
-          {isPlaying ? 'Слежу за бегунком...' : 'Ожидание...'}
-        </Text>
+        <Text style={styles.statusText}>{statusText}</Text>
+        
+        <TouchableOpacity 
+          style={styles.settingsButton}
+          onPress={openAccessibilitySettings}
+        >
+          <Text style={styles.settingsButtonText}>
+            Открыть настройки доступности
+          </Text>
+        </TouchableOpacity>
+        
         <Text style={styles.hintText}>
-          Нажми Play — цифра начнет расти
+          Включите "TikTok AutoScroll" в настройках доступности
         </Text>
       </View>
 
@@ -139,15 +150,28 @@ const styles = StyleSheet.create({
     color: '#00cc66',
     marginBottom: 20,
   },
-  debugText: {
+  statusText: {
     fontSize: 16,
-    color: '#888888',
+    color: '#ffffff',
+    marginBottom: 20,
+  },
+  settingsButton: {
+    backgroundColor: '#1a73e8',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
     marginBottom: 10,
   },
+  settingsButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
   hintText: {
-    fontSize: 14,
-    color: '#555555',
+    fontSize: 12,
+    color: '#666666',
     textAlign: 'center',
+    marginTop: 10,
   },
   floatingPanel: {
     position: 'absolute',
