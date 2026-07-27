@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">TikTok AutoScroll</string>
+    <string name="accessibility_service_description">Автоматическое пролистывание TikTok по окончании ролика</string>
+</resources>
