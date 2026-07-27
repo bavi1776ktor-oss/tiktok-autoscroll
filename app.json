@@ -23,7 +23,10 @@
       "permissions": [
         "android.permission.SYSTEM_ALERT_WINDOW",
         "android.permission.BIND_ACCESSIBILITY_SERVICE"
-      ]
+      ],
+      "dangerous": {
+        "androidManifest": "./android/app/src/main/AndroidManifest.xml"
+      }
     }
   }
 }
