@@ -5,9 +5,9 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
+  AccessibilityInfo,
   Linking,
 } from 'react-native';
-import AccessibilityService from 'react-native-accessibility-service';
 
 const { height } = Dimensions.get('window');
 
@@ -15,43 +15,27 @@ export default function App() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [statusText, setStatusText] = useState('Ожидание...');
-  const [isServiceEnabled, setIsServiceEnabled] = useState(false);
+  const [isAccessibilityEnabled, setIsAccessibilityEnabled] = useState(false);
 
-  useEffect(() => {
-    // Проверяем, включена ли доступность
-    checkAccessibility();
-  }, []);
-
+  // Проверка доступности
   const checkAccessibility = async () => {
-    const enabled = await AccessibilityService.isAccessibilityEnabled();
-    setIsServiceEnabled(enabled);
+    const enabled = await AccessibilityInfo.isScreenReaderEnabled();
+    setIsAccessibilityEnabled(enabled);
     if (!enabled) {
       setStatusText('Включите доступность в настройках');
+    } else {
+      setStatusText('Доступность включена. Нажмите Play');
     }
   };
 
-  const startWatching = () => {
-    setStatusText('Слежу за бегунком...');
-    // Начинаем мониторинг экрана
-    AccessibilityService.startMonitoring((event) => {
-      if (event.type === 'progress') {
-        setProgress(event.progress);
-      } else if (event.type === 'reset') {
-        // Ролик закончился - делаем свайп
-        performSwipe();
-      }
-    });
-  };
+  useEffect(() => {
+    checkAccessibility();
+  }, []);
 
-  const stopWatching = () => {
-    setStatusText('Ожидание...');
-    setProgress(0);
-    AccessibilityService.stopMonitoring();
-  };
-
+  // Эмуляция свайпа (через AccessibilityService)
   const performSwipe = () => {
     setStatusText('Свайп!');
-    AccessibilityService.swipeUp();
+    // TODO: Реальный свайп через AccessibilityService
     setTimeout(() => {
       if (isPlaying) {
         setStatusText('Слежу за бегунком...');
@@ -59,20 +43,36 @@ export default function App() {
     }, 500);
   };
 
+  // Эмуляция бегунка (пока тестовая)
+  useEffect(() => {
+    let interval;
+    if (isPlaying) {
+      setProgress(0);
+      interval = setInterval(() => {
+        setProgress(prev => {
+          const next = prev + 1;
+          if (next >= 100) {
+            // Достигли 100% - свайп
+            performSwipe();
+            return 0;
+          }
+          return next;
+        });
+      }, 100);
+    } else {
+      setProgress(0);
+    }
+    return () => clearInterval(interval);
+  }, [isPlaying]);
+
   const togglePlay = () => {
     const newState = !isPlaying;
     setIsPlaying(newState);
-
     if (newState) {
-      checkAccessibility();
-      if (isServiceEnabled) {
-        startWatching();
-      } else {
-        setStatusText('Сначала включите доступность');
-        setIsPlaying(false);
-      }
+      setStatusText('Слежу за бегунком...');
+      // TODO: Реальный мониторинг бегунка
     } else {
-      stopWatching();
+      setStatusText('Ожидание...');
     }
   };
 
@@ -83,7 +83,7 @@ export default function App() {
   };
 
   const openSettings = () => {
-    AccessibilityService.openAccessibilitySettings();
+    Linking.openSettings();
   };
 
   return (
@@ -100,7 +100,7 @@ export default function App() {
 
         <Text style={styles.statusText}>{statusText}</Text>
         <Text style={styles.hintText}>
-          Доступность: {isServiceEnabled ? '✅ Включена' : '❌ Выключена'}
+          Доступность: {isAccessibilityEnabled ? '✅ Включена' : '❌ Выключена'}
         </Text>
         
         <TouchableOpacity 
@@ -111,6 +111,12 @@ export default function App() {
             Открыть настройки доступности
           </Text>
         </TouchableOpacity>
+
+        <Text style={styles.debugHint}>
+          {isAccessibilityEnabled ? 
+            'Доступность включена. Ищем бегунок...' : 
+            'Включите доступность в настройках телефона'}
+        </Text>
       </View>
 
       <View style={styles.floatingPanel}>
@@ -183,6 +189,12 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  debugHint: {
+    fontSize: 14,
+    color: '#666666',
+    textAlign: 'center',
+    marginTop: 10,
   },
   floatingPanel: {
     position: 'absolute',
