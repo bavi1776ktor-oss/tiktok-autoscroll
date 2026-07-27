@@ -1,124 +1,83 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   Dimensions,
-  AccessibilityInfo,
-  Linking,
 } from 'react-native';
 
-const { height } = Dimensions.get('window');
+const { height, width } = Dimensions.get('window');
 
 export default function App() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [statusText, setStatusText] = useState('Ожидание...');
-  const [isAccessibilityEnabled, setIsAccessibilityEnabled] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const intervalRef = useRef(null);
+  const timerRef = useRef(null);
+  const [videoDuration, setVideoDuration] = useState(30); // средняя длина ролика
 
-  // Проверка доступности
-  const checkAccessibility = async () => {
-    const enabled = await AccessibilityInfo.isScreenReaderEnabled();
-    setIsAccessibilityEnabled(enabled);
-    if (!enabled) {
-      setStatusText('Включите доступность в настройках');
-    } else {
-      setStatusText('Доступность включена. Нажмите Play');
-    }
-  };
-
+  // Эмуляция бегунка (работает независимо от TikTok)
   useEffect(() => {
-    checkAccessibility();
-  }, []);
-
-  // Эмуляция свайпа (через AccessibilityService)
-  const performSwipe = () => {
-    setStatusText('Свайп!');
-    // TODO: Реальный свайп через AccessibilityService
-    setTimeout(() => {
-      if (isPlaying) {
-        setStatusText('Слежу за бегунком...');
-      }
-    }, 500);
-  };
-
-  // Эмуляция бегунка (пока тестовая)
-  useEffect(() => {
-    let interval;
     if (isPlaying) {
       setProgress(0);
-      interval = setInterval(() => {
+      setCurrentTime(0);
+      
+      // Бегунок растет
+      intervalRef.current = setInterval(() => {
         setProgress(prev => {
           const next = prev + 1;
           if (next >= 100) {
-            // Достигли 100% - свайп
+            // Достигли 100% - делаем свайп
             performSwipe();
             return 0;
           }
           return next;
         });
-      }, 100);
+      }, videoDuration * 10); // Длительность ролика в мс
+
+      // Таймер реального времени
+      timerRef.current = setInterval(() => {
+        setCurrentTime(prev => prev + 1);
+      }, 1000);
     } else {
+      clearInterval(intervalRef.current);
+      clearInterval(timerRef.current);
       setProgress(0);
+      setCurrentTime(0);
     }
-    return () => clearInterval(interval);
-  }, [isPlaying]);
+    return () => {
+      clearInterval(intervalRef.current);
+      clearInterval(timerRef.current);
+    };
+  }, [isPlaying, videoDuration]);
+
+  // Эмуляция свайпа (просто анимация)
+  const performSwipe = () => {
+    console.log('Свайп вверх!');
+    // В реальности здесь будет эмуляция касания
+    // Пока просто вибрация и звук (если добавить)
+  };
 
   const togglePlay = () => {
-    const newState = !isPlaying;
-    setIsPlaying(newState);
-    if (newState) {
-      setStatusText('Слежу за бегунком...');
-      // TODO: Реальный мониторинг бегунка
-    } else {
-      setStatusText('Ожидание...');
-    }
+    setIsPlaying(!isPlaying);
   };
 
   const handleSkip = () => {
     if (isPlaying) {
       performSwipe();
+      setProgress(0);
+      setCurrentTime(0);
     }
   };
 
-  const openSettings = () => {
-    Linking.openSettings();
+  const handleDurationChange = (seconds) => {
+    setVideoDuration(seconds);
   };
 
   return (
     <View style={styles.container}>
-      <View style={styles.content}>
-        <Text style={styles.title}>TikTok AutoScroll</Text>
-        <Text style={styles.subtitle}>
-          {isPlaying ? '▶ Активен' : '⏸ На паузе'}
-        </Text>
-        
-        <Text style={styles.progressBig}>
-          {Math.round(progress)}%
-        </Text>
-
-        <Text style={styles.statusText}>{statusText}</Text>
-        <Text style={styles.hintText}>
-          Доступность: {isAccessibilityEnabled ? '✅ Включена' : '❌ Выключена'}
-        </Text>
-        
-        <TouchableOpacity 
-          style={styles.settingsButton}
-          onPress={openSettings}
-        >
-          <Text style={styles.settingsButtonText}>
-            Открыть настройки доступности
-          </Text>
-        </TouchableOpacity>
-
-        <Text style={styles.debugHint}>
-          {isAccessibilityEnabled ? 
-            'Доступность включена. Ищем бегунок...' : 
-            'Включите доступность в настройках телефона'}
-        </Text>
-      </View>
-
+      {/* Панель управления поверх всех окон */}
       <View style={styles.floatingPanel}>
         <TouchableOpacity
           style={[styles.button, isPlaying && styles.buttonActive]}
@@ -136,6 +95,32 @@ export default function App() {
           <Text style={styles.buttonText}>⏭</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Информация о прогрессе (для отладки) */}
+      <View style={styles.debugPanel}>
+        <Text style={styles.debugText}>Прогресс: {progress}%</Text>
+        <Text style={styles.debugText}>Время: {currentTime} сек</Text>
+        <View style={styles.durationButtons}>
+          <TouchableOpacity 
+            style={[styles.durationBtn, videoDuration === 15 && styles.durationActive]}
+            onPress={() => handleDurationChange(15)}
+          >
+            <Text style={styles.durationText}>15с</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.durationBtn, videoDuration === 30 && styles.durationActive]}
+            onPress={() => handleDurationChange(30)}
+          >
+            <Text style={styles.durationText}>30с</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.durationBtn, videoDuration === 60 && styles.durationActive]}
+            onPress={() => handleDurationChange(60)}
+          >
+            <Text style={styles.durationText}>60с</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
     </View>
   );
 }
@@ -143,59 +128,9 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0a0a0a',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: 'transparent',
   },
-  content: {
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    marginBottom: 10,
-  },
-  subtitle: {
-    fontSize: 18,
-    color: '#a0c4ff',
-    marginBottom: 30,
-  },
-  progressBig: {
-    fontSize: 72,
-    fontWeight: 'bold',
-    color: '#00cc66',
-    marginBottom: 20,
-  },
-  statusText: {
-    fontSize: 16,
-    color: '#ffffff',
-    marginBottom: 10,
-  },
-  hintText: {
-    fontSize: 14,
-    color: '#888888',
-    marginBottom: 20,
-  },
-  settingsButton: {
-    backgroundColor: '#1a73e8',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginBottom: 10,
-  },
-  settingsButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  debugHint: {
-    fontSize: 14,
-    color: '#666666',
-    textAlign: 'center',
-    marginTop: 10,
-  },
+  // Плавающая панель (левая сторона)
   floatingPanel: {
     position: 'absolute',
     left: 16,
@@ -230,5 +165,42 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     textAlign: 'center',
     lineHeight: 28,
+  },
+  // Панель отладки (внизу)
+  debugPanel: {
+    position: 'absolute',
+    bottom: 40,
+    left: 16,
+    right: 16,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    zIndex: 999,
+  },
+  debugText: {
+    color: '#ffffff',
+    fontSize: 14,
+    marginVertical: 2,
+  },
+  durationButtons: {
+    flexDirection: 'row',
+    marginTop: 10,
+  },
+  durationBtn: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginHorizontal: 4,
+  },
+  durationActive: {
+    backgroundColor: 'rgba(0, 200, 100, 0.3)',
+    borderColor: '#00cc66',
+    borderWidth: 1,
+  },
+  durationText: {
+    color: '#ffffff',
+    fontSize: 12,
   },
 });
