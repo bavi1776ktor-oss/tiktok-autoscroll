@@ -5,29 +5,28 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
-  PanResponder,
 } from 'react-native';
 
-const { width, height } = Dimensions.get('window');
+const { height } = Dimensions.get('window');
 
 export default function App() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [isWatching, setIsWatching] = useState(false);
 
   const progressInterval = useRef(null);
   const watchTimeout = useRef(null);
   const lastResetTime = useRef(Date.now());
 
+  // Запуск эмуляции
   const startWatching = () => {
-    if (isWatching) return;
-    setIsWatching(true);
-    setProgress(0);
-
+    // Очищаем старые таймеры
     if (progressInterval.current) clearInterval(progressInterval.current);
     if (watchTimeout.current) clearTimeout(watchTimeout.current);
 
+    setProgress(0);
     let currentProgress = 0;
+
+    // Бегунок растет от 0 до 100
     progressInterval.current = setInterval(() => {
       currentProgress += 2;
       if (currentProgress >= 100) {
@@ -35,15 +34,17 @@ export default function App() {
         setProgress(100);
         clearInterval(progressInterval.current);
         progressInterval.current = null;
+        // Сброс — свайп (эмуляция)
         handleProgressReset();
       } else {
         setProgress(currentProgress);
       }
     }, 100);
 
+    // Таймаут 1.5 сек — если бегунок не появился (реклама)
     watchTimeout.current = setTimeout(() => {
       if (progress === 0 && isPlaying) {
-        console.log('Реклама или стрим -> свайп');
+        console.log('Реклама -> свайп');
         performSwipe();
         if (isPlaying) {
           startWatching();
@@ -52,6 +53,7 @@ export default function App() {
     }, 1500);
   };
 
+  // Сброс бегунка
   const handleProgressReset = () => {
     const now = Date.now();
     const timeSinceLastReset = now - lastResetTime.current;
@@ -63,6 +65,7 @@ export default function App() {
     lastResetTime.current = now;
 
     if (isPlaying) {
+      console.log('Сброс бегунка -> свайп');
       performSwipe();
       setTimeout(() => {
         if (isPlaying) {
@@ -72,19 +75,22 @@ export default function App() {
     }
   };
 
+  // Эмуляция свайпа
   const performSwipe = () => {
     console.log('Свайп вверх');
   };
 
+  // Play / Pause
   const togglePlay = () => {
     const newState = !isPlaying;
     setIsPlaying(newState);
 
     if (newState) {
+      console.log('Play включен');
       lastResetTime.current = Date.now();
       startWatching();
     } else {
-      setIsWatching(false);
+      console.log('Pause включен');
       if (progressInterval.current) {
         clearInterval(progressInterval.current);
         progressInterval.current = null;
@@ -93,13 +99,15 @@ export default function App() {
         clearTimeout(watchTimeout.current);
         watchTimeout.current = null;
       }
+      setProgress(0);
     }
   };
 
+  // Skip
   const handleSkip = () => {
+    console.log('Нажат Skip');
     performSwipe();
     if (isPlaying) {
-      setIsWatching(false);
       if (progressInterval.current) {
         clearInterval(progressInterval.current);
         progressInterval.current = null;
@@ -108,6 +116,7 @@ export default function App() {
         clearTimeout(watchTimeout.current);
         watchTimeout.current = null;
       }
+      setProgress(0);
       setTimeout(() => {
         if (isPlaying) {
           startWatching();
@@ -116,14 +125,7 @@ export default function App() {
     }
   };
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderMove: () => {},
-    })
-  ).current;
-
+  // Очистка при выходе
   useEffect(() => {
     return () => {
       if (progressInterval.current) clearInterval(progressInterval.current);
@@ -136,17 +138,20 @@ export default function App() {
       <View style={styles.content}>
         <Text style={styles.title}>TikTok AutoScroll</Text>
         <Text style={styles.subtitle}>
-          {isPlaying ? 'Воспроизведение...' : 'На паузе'}
+          {isPlaying ? '▶ Воспроизведение...' : '⏸ На паузе'}
         </Text>
         <Text style={styles.progressText}>
           Прогресс: {Math.round(progress)}%
         </Text>
         <Text style={styles.debugText}>
-          {isWatching ? 'Слежу за бегунком...' : 'Ожидание...'}
+          {isPlaying ? 'Слежу за бегунком...' : 'Ожидание...'}
+        </Text>
+        <Text style={styles.hintText}>
+          Нажми Play — бегунок начнет расти
         </Text>
       </View>
 
-      <View style={styles.floatingPanel} {...panResponder.panHandlers}>
+      <View style={styles.floatingPanel}>
         <TouchableOpacity
           style={[styles.button, isPlaying && styles.buttonActive]}
           onPress={togglePlay}
@@ -197,6 +202,13 @@ const styles = StyleSheet.create({
   debugText: {
     fontSize: 14,
     color: '#555555',
+    marginBottom: 5,
+  },
+  hintText: {
+    fontSize: 14,
+    color: '#666666',
+    marginTop: 20,
+    textAlign: 'center',
   },
   floatingPanel: {
     position: 'absolute',
