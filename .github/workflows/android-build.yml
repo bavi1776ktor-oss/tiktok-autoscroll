@@ -28,22 +28,20 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Force Maven Central and Google repos
+      - name: Create missing gradle files
         run: |
-          cat > ~/.gradle/init.gradle << 'EOF'
-          allprojects {
-              repositories {
-                  mavenCentral()
-                  google()
-                  maven { url 'https://jitpack.io' }
-              }
-          }
-          EOF
+          mkdir -p android/gradle/wrapper
+          curl -L https://github.com/gradle/gradle/raw/v8.7.0/gradle/wrapper/gradle-wrapper.jar -o android/gradle/wrapper/gradle-wrapper.jar
+          echo 'distributionBase=GRADLE_USER_HOME' > android/gradle/wrapper/gradle-wrapper.properties
+          echo 'distributionPath=wrapper/dists' >> android/gradle/wrapper/gradle-wrapper.properties
+          echo 'distributionUrl=https\://services.gradle.org/distributions/gradle-8.7-bin.zip' >> android/gradle/wrapper/gradle-wrapper.properties
+          echo 'zipStoreBase=GRADLE_USER_HOME' >> android/gradle/wrapper/gradle-wrapper.properties
+          echo 'zipStorePath=wrapper/dists' >> android/gradle/wrapper/gradle-wrapper.properties
+          chmod +x android/gradlew
 
       - name: Build APK via Gradle
         run: |
           cd android
-          chmod +x gradlew
           ./gradlew assembleRelease --no-daemon
 
       - name: Upload Finished APK
