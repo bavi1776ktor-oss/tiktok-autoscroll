@@ -28,21 +28,19 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Create missing gradle files
-        run: |
-          mkdir -p android/gradle/wrapper
-          curl -L https://github.com/gradle/gradle/raw/v8.7.0/gradle/wrapper/gradle-wrapper.jar -o android/gradle/wrapper/gradle-wrapper.jar
-          echo 'distributionBase=GRADLE_USER_HOME' > android/gradle/wrapper/gradle-wrapper.properties
-          echo 'distributionPath=wrapper/dists' >> android/gradle/wrapper/gradle-wrapper.properties
-          echo 'distributionUrl=https\://services.gradle.org/distributions/gradle-8.7-bin.zip' >> android/gradle/wrapper/gradle-wrapper.properties
-          echo 'zipStoreBase=GRADLE_USER_HOME' >> android/gradle/wrapper/gradle-wrapper.properties
-          echo 'zipStorePath=wrapper/dists' >> android/gradle/wrapper/gradle-wrapper.properties
-          chmod +x android/gradlew
+      - name: Generate Android folder via Expo
+        run: npx expo prebuild --platform android --clean
 
-      - name: Build APK via Gradle
+      - name: Copy our custom service files
+        run: |
+          mkdir -p android/app/src/main/java/com/tiktokautoscroll/app
+          cp -r android/app/src/main/java/com/tiktokautoscroll/app/* android/app/src/main/java/com/tiktokautoscroll/app/ 2>/dev/null || true
+          cp android/app/src/main/AndroidManifest.xml android/app/src/main/AndroidManifest.xml 2>/dev/null || true
+
+      - name: Build APK via Gradle directly
         run: |
           cd android
-          ./gradlew assembleRelease --no-daemon
+          gradle assembleRelease --no-daemon
 
       - name: Upload Finished APK
         uses: actions/upload-artifact@v4
