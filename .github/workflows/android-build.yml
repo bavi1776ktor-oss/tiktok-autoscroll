@@ -19,18 +19,6 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Generate Android Native Folder
-        run: npx expo prebuild --platform android --clean
-
-      - name: Copy our custom service files
-        run: |
-          # Создаем папку для нашего сервиса, если её нет
-          mkdir -p android/app/src/main/java/com/tiktokautoscroll/app
-          
-          # Копируем наши файлы поверх (они уже лежат в репозитории в папке android)
-          cp -r android/app/src/main/java/com/tiktokautoscroll/app/* android/app/src/main/java/com/tiktokautoscroll/app/ 2>/dev/null || true
-          cp android/app/src/main/AndroidManifest.xml android/app/src/main/AndroidManifest.xml 2>/dev/null || true
-
       - name: Setup Java JDK
         uses: actions/setup-java@v4
         with:
